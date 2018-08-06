@@ -3,7 +3,7 @@
 #include <iostream>
 #include <math.h>
 
-void fitter(char *filename=NULL, char *outfile=NULL) {
+void fitter(char *filename=NULL, char *outfile=NULL,bool debug=0) {
   TFile* file;
   TNtuple* Ntuple;
   TFile* NewFile;
@@ -36,17 +36,17 @@ void fitter(char *filename=NULL, char *outfile=NULL) {
 
   int entries;
 
-  const Double_t posgran = 20.; // The spatial cube dimension that will be used as the starting position of each event track check
+  const Double_t posgran = 190.; // The spatial cube dimension that will be used as the starting position of each event track check
   const Double_t pi = 3.14159265535897;
-  const Double_t thetaerror = 10.*pi/180.; // Error in the track angle reconstruction. This should be more dynamic based off of the position of interest and the pmt being hit. Const for now.
-  const Double_t phierror = 10.*pi/180.;
+  const Double_t thetaerror = 2.*pi/180.; // Error in the track angle reconstruction. This should be more dynamic based off of the position of interest and the pmt being hit. Const for now.
+  const Double_t phierror = 2.*pi/180.;
   const Double_t chrnkvangle = 43.*pi/180..; // Angle to track at which we assume that the cherenkov light is being emmitted.
   const Double_t radius = cos(chrnkvangle); // The corresponding radius and height of the ring that would be produced on the unitsphere given a cherenkov path along the z-axis
   const Double_t height = sin(chrnkvangle);
   const Double_t xmax = 380.;
   const Double_t ymax = 380.; 
   const Double_t zmax = 525.;
-  const Int_t num = 100; // Number of points to take along the cone of muon tracks
+  const Int_t num = 50; // Number of points to take along the cone of muon tracks
 
   // Make a file to write to
   if (outfile != NULL) {
@@ -90,7 +90,7 @@ void fitter(char *filename=NULL, char *outfile=NULL) {
     for (float ypos = -ymax; ypos < ymax; ypos+=posgran) {
       for (float zpos = -zmax; zpos < zmax; zpos+=posgran) {
 	// Make a histogram for this position
-	ThetaPhi = new TH2D(Form("thetaphi_%d",counter), "Theta Phi Parameter Space", ((int) 2*pi/thetaerror) + 1, 0.0, 2*pi, ((int) pi/phierror), 0.0, pi);
+	ThetaPhi = new TH2D(Form("thetaphi_%d",counter), "Theta Phi Parameter Space", ((int) 2*pi/thetaerror) + 1, -pi, pi, ((int) pi/phierror), 0.0, pi);
 	file->cd();
 	for (int entry = 0; entry < entries; entry++) {
 	  // Read in the Ntuple for the first PMT position
@@ -119,25 +119,43 @@ void fitter(char *filename=NULL, char *outfile=NULL) {
 	  rotmat[2][1] = 0;
 	  rotmat[2][2] = cos(polarchrnkv[1]);
 	  // The idea here is to have a vector on our circle, say v, and find what it looks like in this rotated frame so that it is a predicted muon track. The circle is defined by using the predicted cherenkov path
+	  if (debug == 1) {
+	    // ------------------------------------- DEBUG -------------------------------
+	    std::cout << "<DEBUG> Checking pmt POS [x,y,z] = [" << pmtxpos << "," << pmtypos << "," << pmtzpos << "]" << std::endl;
+	    std::cout << "<DEBUG> Cherenkov is [vx,vy,vz] = [" << chrnkv[0] << "," << chrnkv[1] << "," << chrnkv[2] << "]" << std::endl;
+	    std::cout << "<DEBUG> Polar cherenkov coordinates are [theta,phi] = [" << polarchrnkv[0] << "," << polarchrnkv[1] << "]" << std::endl;
+	    // --------------------------------------------------------------------------
+	  }
 	  for (double t = 0; t < 2*pi; t+=(2*pi/((double)num))) {
 	    tempvec[0] = radius*cos(t);
 	    tempvec[1] = radius*sin(t);
 	    tempvec[2] = height;
 	    // Now we rotate the vector by multiplying it through the rotation matrix Mv = v_new, which is just matrix vector multiplication
+	    vec[0] = 0;
+	    vec[1] = 0;
+	    vec[2] = 0;
 	    for (int i = 0; i < 3; i++) {
 	      for (int j = 0; j < 3; j++) {
-		vec[i] = rotmat[i][j]*tempvec[j];
+		vec[i] += rotmat[i][j]*tempvec[j];
 	      }
 	    }
-	    // Convert the vector to a spherical coordinate and feed it into the histogram
+	    // Convert the vector to spherical coordinate and feed it into the histogram
 	    ThetaPhi->Fill(atan(vec[1]/vec[0]),acos(vec[2]));
+	    if (debug == 1) {
+	      // ---------------------------------------------------------------------------
+	      std::cout << "<DEBUG> Possible track [vx,vy,vz] = [" << vec[0] << "," << vec[1] << "," << vec[2] << "]" << std::endl;
+	      std::cout << "<DEBUG> Length of this track is " << << ". This should be ~1."
+	    }
+	    if (fabs(sqrt(vec[0]*vec[0] + vec[1]*vec[1] + vec[2]*vec[2]) - 1) > 0.01) {
+	      std::cout << "<WARNING> Track is of length > 1. This should never happen. Current position is [x,y,z] = [" << xpos << "," << ypos << "," << zpos << "]." << std::endl;
+	    }
 	  }
 	}
 	counter++;
 	maxbin = ThetaPhi->GetMaximumBin(); // This should be the most number of PMTs hit
 	ThetaPhi->GetBinXYZ(maxbin,btheta,bphi,z);
 	//std::cout << "Estimated theta: " << btheta*thetaerror << " phi: " << bphi*phierror << std::endl;
-	Track_Pos->Fill((Float_t)xpos,(Float_t)ypos,(Float_t)zpos,(Float_t)cos(btheta*thetaerror),(Float_t)sin(btheta*thetaerror),(Float_t)cos(bphi*phierror), (Float_t)maxbin);
+	Track_Pos->Fill((Float_t)xpos,(Float_t)ypos,(Float_t)zpos,(Float_t)cos(btheta*thetaerror),(Float_t)sin(btheta*thetaerror),(Float_t)cos(bphi*phierror),(Float_t)maxbin);
 	// Keep track of the position and vector with the most matched PMTs
 	if (maxbin > nmax) {
 	  xfin = xpos;
@@ -149,14 +167,14 @@ void fitter(char *filename=NULL, char *outfile=NULL) {
 	  nmax = maxbin;
 	  maxeve = counter;
 	}
+	NewFile->cd();
 	// This is if I feel it necessary to look at all of the plots produced. Will be VERY memory intensive.
-	if (xpos == 0 && ypos == 0 && zpos == 0) {ThetaPhi->Write();}
-	//NewFile->cd();
-	//ThetaPhi->Write();  
+	ThetaPhi->Write();  
 	ThetaPhi->Reset();
       }
     }
   }
+  NewFile->cd();
   Track_Pos->Write();
   std::cout << "<RESULT> The predicted pos of the muon is [x,y,z] = [" << xfin << "," << yfin << "," << zfin << "] and the predicted track is along [vx,vy,vz] = [" << vxmax << "," << vymax << "," << vzmax << "] with " << nmax << " number of hit pmts (probably). This is event number " << maxeve << ". Done!" << std::endl;
   // Clean up
