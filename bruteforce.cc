@@ -118,7 +118,7 @@ void bruteforce(char *filename=NULL, char *outfile=NULL,bool debug=0) {
 	    tempvec[0] = sin(pbin*phierror)*cos(tbin*thetaerror);
 	    tempvec[1] = sin(pbin*phierror)*sin(tbin*thetaerror);
 	    tempvec[2] = cos(pbin*phierror);
-	    if (fabs(sqrt(tempvec[0]*tempvec[0] + tempvec[0]*tempvec[0] + tempvec[0]*tempvec[0]) - 1.) > 0.05) { 
+	    if (fabs(sqrt(tempvec[0]*tempvec[0] + tempvec[1]*tempvec[1] + tempvec[2]*tempvec[2]) - 1.) > 0.05) { 
 	      std::cout << "<WARNING> Check computation for [theta,phi] = [" << tbin*thetaerror << "," << pbin*phierror << "]." << std::endl;
 	    }
 	    bincounter = 0;
